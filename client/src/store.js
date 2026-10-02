@@ -45,6 +45,8 @@ export const useDevices = create((set, get) => ({
       set((s) => ({ devices: s.devices.map((d) => (d.id === id ? device : d)) }))
     } catch (err) {
       set({ error: err.message })
+      // The device may have gone offline since the last fetch; reload its state.
+      api.devices().then((devices) => set({ devices }), () => {})
     } finally {
       set((s) => ({ pending: { ...s.pending, [id]: false } }))
     }
