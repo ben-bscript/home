@@ -1,9 +1,20 @@
+import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { BackIcon } from '../components/icons.jsx'
 import { useProviders } from '../store.js'
 
 export default function Settings() {
-  const { providers, error, logout } = useProviders()
+  const { providers, error, logout, discover } = useProviders()
+  const [searching, setSearching] = useState(false)
+
+  async function search(id) {
+    setSearching(true)
+    try {
+      await discover(id)
+    } finally {
+      setSearching(false)
+    }
+  }
   const [params] = useSearchParams()
 
   return (
@@ -21,7 +32,7 @@ export default function Settings() {
           <div className="card" key={p.id}>
             <div className="card-head">
               <h2>{p.name}</h2>
-              <span className={`badge${p.connected ? ' ok' : ''}`}>{p.connected ? 'Gekoppeld' : 'Niet gekoppeld'}</span>
+              <span className={`badge${p.connected ? ' ok' : ''}`}>{p.connected ? (p.local ? 'Gevonden' : 'Gekoppeld') : p.local ? 'Niet gevonden' : 'Niet gekoppeld'}</span>
             </div>
 
             {!p.configured && (
@@ -36,7 +47,18 @@ export default function Settings() {
               </p>
             )}
 
-            {p.connected ? (
+            {p.local ? (
+              <>
+                <p className="muted">
+                  {p.host
+                    ? `Bereikbaar op ${p.host}${p.hostSource === 'static' ? ' (vast IP-adres)' : ''}.`
+                    : `Niet gevonden op het lokale netwerk${p.staticHost ? ` en ook niet op het vaste adres ${p.staticHost}` : ''}. Een vast IP-adres stel je in met RENSON_WAVES_HOST in server/.env.`}
+                </p>
+                <button type="button" disabled={searching} onClick={() => search(p.id)}>
+                  {searching ? 'Zoeken…' : 'Zoek op netwerk'}
+                </button>
+              </>
+            ) : p.connected ? (
               <button type="button" onClick={() => logout(p.id)}>Ontkoppelen</button>
             ) : (
               p.configured && <a className="button primary" href={`/api/auth/${p.id}/login`}>Koppelen</a>

@@ -12,6 +12,10 @@ export const useProviders = create((set, get) => ({
       set({ loaded: true, error: err.message })
     }
   },
+  discover: async (id) => {
+    await api.discover(id)
+    await Promise.all([get().fetch(), useDevices.getState().fetch()])
+  },
   logout: async (id) => {
     await api.logout(id)
     useDevices.setState({ devices: [], loaded: false })
@@ -47,6 +51,16 @@ export const useDevices = create((set, get) => ({
     } finally {
       set({ loading: false })
       useProviders.getState().fetch()
+    }
+  },
+  // Background refresh for devices on the local network; errors are ignored
+  // and nothing is replaced while a command is in flight.
+  poll: async () => {
+    if (get().loading || Object.values(get().pending).some(Boolean)) return
+    try {
+      set({ devices: await api.devices({ background: true }) })
+    } catch {
+      // keep the last known state
     }
   },
   command: async (id, command, value) => {

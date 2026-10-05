@@ -1,37 +1,16 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useParams } from 'react-router'
+import { Chips, Stat } from '../components/bits.jsx'
 import Consumption from '../components/Consumption.jsx'
 import { BackIcon, FanIcon, PowerIcon, SnowIcon, TimerIcon } from '../components/icons.jsx'
 import ScheduleEditor from '../components/ScheduleEditor.jsx'
 import TempCard from '../components/TempCard.jsx'
 import Toggle from '../components/Toggle.jsx'
+import Ventilation from '../components/Ventilation.jsx'
 import { fanLabel, FAN_LABELS, formatTemp, MODE_LABELS, SWING_LABELS, TOGGLE_GLYPHS, TOGGLE_LABELS } from '../format.js'
 import { displayName, roomOfDevice } from '../rooms.js'
 import { useDevices } from '../store.js'
-
-function Chips({ options, value, disabled, onChange }) {
-  return (
-    <div className="chips">
-      {options.map(([key, label]) => (
-        <button key={key} type="button" className={key === value ? 'active' : ''} disabled={disabled} onClick={() => key !== value && onChange(key)}>
-          {label}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-function Stat({ value, unit, label }) {
-  return (
-    <div className="stat">
-      <div className="stat-value">
-        {value}
-        <span>{unit}</span>
-      </div>
-      <div className="muted">{label}</div>
-    </div>
-  )
-}
 
 function Rename({ device, disabled, onRename }) {
   const [name, setName] = useState(device.name)
@@ -110,7 +89,7 @@ function problems(info) {
   ].filter(Boolean)
 }
 
-function Climate({ device }) {
+function Climate({ device, dockSlot }) {
   const command = useDevices((s) => s.command)
   const offline = device.online === false
   const pending = useDevices((s) => s.pending[device.id]) || offline
@@ -255,18 +234,21 @@ function Climate({ device }) {
         </div>
       </div>
 
-      <footer className="dock">
-        <button type="button" disabled={pending} onClick={() => command(device.id, 'power', !on)}>
-          <span className={`dock-icon${on ? ' on' : ''}`}><PowerIcon /></span>
-          {on ? 'Uit' : 'Aan'}
-        </button>
-        {climate.schedule && (
-          <button type="button" onClick={() => document.getElementById('planning')?.scrollIntoView({ behavior: 'smooth' })}>
-            <span className="dock-icon"><TimerIcon /></span>
-            Planning
+      {dockSlot && createPortal(
+        <footer className="dock">
+          <button type="button" disabled={pending} onClick={() => command(device.id, 'power', !on)}>
+            <span className={`dock-icon${on ? ' on' : ''}`}><PowerIcon /></span>
+            {on ? 'Uit' : 'Aan'}
           </button>
-        )}
-      </footer>
+          {climate.schedule && (
+            <button type="button" onClick={() => document.getElementById('planning')?.scrollIntoView({ behavior: 'smooth' })}>
+              <span className="dock-icon"><TimerIcon /></span>
+              Planning
+            </button>
+          )}
+        </footer>,
+        dockSlot,
+      )}
     </>
   )
 }
@@ -275,7 +257,9 @@ export default function Device() {
   const { id } = useParams()
   const { devices, loaded, error, fetch } = useDevices()
   const device = devices.find((d) => d.id === id)
-  const room = roomOfDevice(id)
+  const room = device && roomOfDevice(device)
+  // The action bar lives below the scrolling content, so it never covers it.
+  const [dockSlot, setDockSlot] = useState(null)
 
   useEffect(() => {
     if (!loaded) fetch()
@@ -283,15 +267,19 @@ export default function Device() {
 
   return (
     <div className="screen detail">
-      <header className="bar">
-        <Link to="/" aria-label="Terug"><BackIcon /></Link>
-        <h1>{device ? displayName(device) : 'Toestel'}</h1>
-        <span className="bar-room">{room.name}</span>
-      </header>
-      {error && <p className="error">{error}</p>}
-      {!device && !error && <p className="muted center">{loaded ? 'Toestel niet gevonden.' : 'Laden…'}</p>}
-      {device?.climate && <Climate device={device} />}
-      {device && !device.climate && <p className="muted center">Dit toestel wordt nog niet ondersteund.</p>}
+      <div className="detail-scroll">
+        <header className="bar">
+          <Link to="/" aria-label="Terug"><BackIcon /></Link>
+          <h1>{device ? displayName(device) : 'Toestel'}</h1>
+          <span className="bar-room">{room?.name}</span>
+        </header>
+        {error && <p className="error">{error}</p>}
+        {!device && !error && <p className="muted center">{loaded ? 'Toestel niet gevonden.' : 'Laden…'}</p>}
+        {device?.climate && <Climate device={device} dockSlot={dockSlot} />}
+        {device?.ventilation && <Ventilation device={device} dockSlot={dockSlot} />}
+        {device && !device.climate && !device.ventilation && <p className="muted center">Dit toestel wordt nog niet ondersteund.</p>}
+      </div>
+      <div ref={setDockSlot} />
     </div>
   )
 }

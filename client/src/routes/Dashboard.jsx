@@ -1,20 +1,27 @@
 import { useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router'
-import { GearIcon, RefreshIcon, SnowIcon } from '../components/icons.jsx'
+import { FanIcon, GearIcon, RefreshIcon, SnowIcon } from '../components/icons.jsx'
 import Toggle from '../components/Toggle.jsx'
 import { formatTemp, greeting, MODE_LABELS } from '../format.js'
-import { devicesInRoom, displayName, ROOMS } from '../rooms.js'
+import { devicesInRoom, displayName, ROOMS, unassignedDevices } from '../rooms.js'
 import { useDevices, useProviders, useWeather } from '../store.js'
 
 function DeviceRow({ device }) {
   const command = useDevices((s) => s.command)
   const pending = useDevices((s) => s.pending[device.id])
-  const { climate } = device
-  const on = Boolean(climate?.power)
+  const { climate, ventilation } = device
+  const offline = device.online === false
+  const on = !offline && Boolean(climate?.power || ventilation?.boost?.enabled)
 
   let sub = device.model ?? 'Niet ondersteund'
-  if (device.online === false) sub = 'Offline'
-  else if (climate) {
+  if (offline) sub = 'Offline'
+  else if (ventilation) {
+    sub = [
+      on ? 'Boost' : ventilation.level != null && `${ventilation.level}%`,
+      ventilation.temperature != null && `${formatTemp(ventilation.temperature)}°C`,
+      ventilation.humidity != null && `${Math.round(ventilation.humidity)}% vocht`,
+    ].filter(Boolean).join(' · ')
+  } else if (climate) {
     sub = on
       ? [climate.targetTemperature && `${formatTemp(climate.targetTemperature.value)}°C`, MODE_LABELS[climate.mode] ?? climate.mode].filter(Boolean).join(' · ')
       : 'Stand-by'
@@ -23,13 +30,14 @@ function DeviceRow({ device }) {
   return (
     <div className="device-row">
       <Link to={`/devices/${encodeURIComponent(device.id)}`} className="device-link">
-        <span className={`icon-circle${on ? ' on' : ''}`}><SnowIcon /></span>
+        <span className={`icon-circle${on ? ' on' : ''}`}>{ventilation ? <FanIcon /> : <SnowIcon />}</span>
         <span>
           <span className="device-name">{displayName(device)}</span>
           <span className="device-sub">{sub}</span>
         </span>
       </Link>
-      {climate && <Toggle checked={on} disabled={pending || device.online === false} label={`${device.name} aan/uit`} onChange={(value) => command(device.id, 'power', value)} />}
+      {climate && <Toggle checked={on} disabled={pending || offline} label={`${device.name} aan/uit`} onChange={(value) => command(device.id, 'power', value)} />}
+      {ventilation?.boost && <Toggle checked={on} disabled={pending || offline} label={`${device.name} boost`} onChange={(enable) => command(device.id, 'boost', { enable })} />}
     </div>
   )
 }
@@ -43,6 +51,7 @@ export default function Dashboard() {
   // The tabs filter the overview; without a selection every room is shown.
   const filter = ROOMS.find((r) => r.id === params.get('kamer'))
   const rooms = filter ? [filter] : ROOMS
+  const other = filter ? [] : unassignedDevices(devices)
   const weather = useWeather((s) => s.weather)
   const fetchWeather = useWeather((s) => s.fetch)
 
@@ -110,7 +119,16 @@ export default function Dashboard() {
               )}
             </section>
           )
-        })
+        }).concat(
+          other.length ? (
+            <section key="other" className="room">
+              <h2>Overige</h2>
+              <div className="card list">
+                {other.map((device) => <DeviceRow key={device.id} device={device} />)}
+              </div>
+            </section>
+          ) : [],
+        )
       )}
     </div>
   )

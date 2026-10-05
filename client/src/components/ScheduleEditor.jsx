@@ -95,9 +95,11 @@ export default function ScheduleEditor({ schedule, disabled, onSave }) {
   const dirty = JSON.stringify(toActions(rows)) !== JSON.stringify(toActions(toRows(schedule.actions)))
   const duplicate = Object.values(rows).some((list) => new Set(list.map((r) => r.time)).size !== list.length)
 
+  // Devices are refetched regularly; only reset the draft when the saved schedule changed.
+  const saved = JSON.stringify(schedule.actions)
   useEffect(() => {
-    setRows(toRows(schedule.actions))
-  }, [schedule.actions])
+    setRows(toRows(JSON.parse(saved)))
+  }, [saved])
 
   const update = (period, list) => setRows({ ...rows, [period]: list })
 

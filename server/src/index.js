@@ -47,6 +47,13 @@ app.get('/api/auth/:provider/callback', async (req, res) => {
   }
 })
 
+app.post('/api/providers/:provider/discover', async (req, res) => {
+  const provider = getProvider(req)
+  if (!provider.discover) throw new HttpError(400, `${provider.name} cannot be discovered`)
+  await provider.discover()
+  res.json(provider.status())
+})
+
 app.post('/api/auth/:provider/logout', (req, res) => {
   getProvider(req).disconnect()
   res.status(204).end()
@@ -58,8 +65,10 @@ app.get('/api/weather', async (req, res) => {
 
 app.get('/api/devices', async (req, res) => {
   const force = req.query.refresh === '1'
-  const connected = Object.values(providers).filter((p) => p.status().connected)
-  const lists = await Promise.all(connected.map((p) => p.listDevices({ force })))
+  // Local providers look for their device themselves, so they are always asked.
+  const active = Object.values(providers).filter((p) => p.status().connected || p.status().local)
+  const cacheOnly = req.query.background === '1'
+  const lists = await Promise.all(active.map((p) => p.listDevices({ force, cacheOnly })))
   res.json(lists.flat())
 })
 
@@ -78,9 +87,14 @@ app.use((err, req, res, next) => {
 
 app.listen(config.port, () => console.log(`API listening on http://localhost:${config.port}`))
 
+for (const provider of Object.values(providers)) provider.start?.()
+
 // OAuth providers such as Daikin only accept https redirect URIs, so the
 // callback is also served over https with a locally generated certificate.
-const redirects = Object.values(providers).map((p) => new URL(p.status().redirectUri))
+const redirects = Object.values(providers)
+  .map((p) => p.status().redirectUri)
+  .filter(Boolean)
+  .map((uri) => new URL(uri))
 const httpsRedirect = redirects.find((u) => u.protocol === 'https:')
 if (httpsRedirect) {
   const host = httpsRedirect.hostname

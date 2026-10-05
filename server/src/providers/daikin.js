@@ -8,9 +8,20 @@ const IDP = 'https://idp.onecta.daikineurope.com/v1/oidc'
 const API = 'https://api.onecta.daikineurope.com/v1'
 const SCOPE = 'openid onecta:basic.integration'
 
-// The API is limited to 200 requests/day, so device state is cached and only
-// refetched when stale or explicitly requested.
-const CACHE_TTL = 15 * 60 * 1000
+// The API is limited to 200 requests/day, so device state is cached. The cache
+// is kept short while there is plenty of budget left, so a page reload shows
+// current state, and gets longer as the day's budget runs down.
+function cacheTtl() {
+  const remaining = rateLimit?.remainingDay ?? 200
+  if (remaining > 100) return 60 * 1000
+  if (remaining > 40) return 5 * 60 * 1000
+  return 15 * 60 * 1000
+}
+
+// The cloud needs a while to reflect a command; until then a refetch would
+// return the old state and undo what the app shows.
+const COMMAND_HOLD = 30 * 1000
+let holdUntil = 0
 
 let cache = { raw: null, fetchedAt: 0 }
 let rateLimit = null
@@ -237,8 +248,10 @@ function normalize(raw) {
   return device
 }
 
-export async function listDevices({ force = false } = {}) {
-  if (force || !cache.raw || Date.now() - cache.fetchedAt > CACHE_TTL) {
+export async function listDevices({ force = false, cacheOnly = false } = {}) {
+  // Background polls must not spend the daily request budget.
+  const held = cache.raw && (cacheOnly || Date.now() < holdUntil)
+  if (!held && (force || !cache.raw || Date.now() - cache.fetchedAt > cacheTtl())) {
     cache = { raw: await api('/gateway-devices'), fetchedAt: Date.now() }
   }
   return cache.raw.map(normalize)
@@ -333,6 +346,7 @@ export async function sendCommand(deviceId, command, value) {
   if (request) {
     await api(base + request.path, { method: request.method, body: JSON.stringify(request.body) })
     request.apply()
+    holdUntil = Date.now() + COMMAND_HOLD
     return normalize(raw)
   }
 
@@ -347,6 +361,7 @@ export async function sendCommand(deviceId, command, value) {
     for (const key of path.split('/').filter(Boolean)) target = target?.[key]
   }
   if (target) target.value = v
+  holdUntil = Date.now() + COMMAND_HOLD
   return normalize(raw)
 }
 
