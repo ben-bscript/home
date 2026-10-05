@@ -9,6 +9,7 @@ async function request(path, options) {
 export const api = {
   providers: () => request('/providers'),
   logout: (provider) => request(`/auth/${provider}/logout`, { method: 'POST' }),
+  weather: () => request('/weather'),
   devices: ({ refresh = false } = {}) => request(`/devices${refresh ? '?refresh=1' : ''}`),
   command: (id, command, value) =>
     request(`/devices/${encodeURIComponent(id)}/commands`, {

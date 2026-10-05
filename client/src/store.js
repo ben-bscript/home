@@ -19,6 +19,17 @@ export const useProviders = create((set, get) => ({
   },
 }))
 
+export const useWeather = create((set) => ({
+  weather: null,
+  fetch: async () => {
+    try {
+      set({ weather: await api.weather() })
+    } catch {
+      set({ weather: null })
+    }
+  },
+}))
+
 export const useDevices = create((set, get) => ({
   devices: [],
   loaded: false,

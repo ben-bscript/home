@@ -6,7 +6,7 @@ import ScheduleEditor from '../components/ScheduleEditor.jsx'
 import TempCard from '../components/TempCard.jsx'
 import Toggle from '../components/Toggle.jsx'
 import { fanLabel, FAN_LABELS, formatTemp, MODE_LABELS, SWING_LABELS, TOGGLE_GLYPHS, TOGGLE_LABELS } from '../format.js'
-import { roomOfDevice } from '../rooms.js'
+import { displayName, roomOfDevice } from '../rooms.js'
 import { useDevices } from '../store.js'
 
 function Chips({ options, value, disabled, onChange }) {
@@ -284,8 +284,8 @@ export default function Device() {
   return (
     <div className="screen detail">
       <header className="bar">
-        <Link to={`/?kamer=${room.id}`} aria-label="Terug"><BackIcon /></Link>
-        <h1>{device?.name ?? 'Toestel'}</h1>
+        <Link to="/" aria-label="Terug"><BackIcon /></Link>
+        <h1>{device ? displayName(device) : 'Toestel'}</h1>
         <span className="bar-room">{room.name}</span>
       </header>
       {error && <p className="error">{error}</p>}

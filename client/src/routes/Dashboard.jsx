@@ -3,8 +3,8 @@ import { Link, useSearchParams } from 'react-router'
 import { GearIcon, RefreshIcon, SnowIcon } from '../components/icons.jsx'
 import Toggle from '../components/Toggle.jsx'
 import { formatTemp, greeting, MODE_LABELS } from '../format.js'
-import { devicesInRoom, ROOMS } from '../rooms.js'
-import { useDevices, useProviders } from '../store.js'
+import { devicesInRoom, displayName, ROOMS } from '../rooms.js'
+import { useDevices, useProviders, useWeather } from '../store.js'
 
 function DeviceRow({ device }) {
   const command = useDevices((s) => s.command)
@@ -25,7 +25,7 @@ function DeviceRow({ device }) {
       <Link to={`/devices/${encodeURIComponent(device.id)}`} className="device-link">
         <span className={`icon-circle${on ? ' on' : ''}`}><SnowIcon /></span>
         <span>
-          <span className="device-name">{device.name}</span>
+          <span className="device-name">{displayName(device)}</span>
           <span className="device-sub">{sub}</span>
         </span>
       </Link>
@@ -40,9 +40,15 @@ export default function Dashboard() {
   const providersLoaded = useProviders((s) => s.loaded)
   const connected = providers.some((p) => p.connected)
   const [params, setParams] = useSearchParams()
-  const room = ROOMS.find((r) => r.id === params.get('kamer')) ?? ROOMS[0]
-  const roomDevices = devicesInRoom(room, devices)
-  const outdoor = devices.find((d) => d.climate?.outdoorTemperature != null)?.climate.outdoorTemperature
+  // The tabs filter the overview; without a selection every room is shown.
+  const filter = ROOMS.find((r) => r.id === params.get('kamer'))
+  const rooms = filter ? [filter] : ROOMS
+  const weather = useWeather((s) => s.weather)
+  const fetchWeather = useWeather((s) => s.fetch)
+
+  useEffect(() => {
+    fetchWeather()
+  }, [fetchWeather])
 
   useEffect(() => {
     if (connected && !loaded) fetch()
@@ -56,13 +62,13 @@ export default function Dashboard() {
           <h1>Mijn huis</h1>
         </div>
         <div className="home-side">
-          {outdoor != null && (
+          {weather && (
             <div>
-              <div className="outdoor">{formatTemp(outdoor)}°C</div>
-              <div className="muted">buiten</div>
+              <div className="outdoor">{formatTemp(weather.temperature)}°C</div>
+              <div className="muted">{weather.location}</div>
             </div>
           )}
-          <button type="button" className="icon-button" aria-label="Vernieuwen" disabled={loading || !connected} onClick={() => fetch({ refresh: true })}>
+          <button type="button" className="icon-button" aria-label="Vernieuwen" disabled={loading || !connected} onClick={() => { fetch({ refresh: true }); fetchWeather() }}>
             <RefreshIcon />
           </button>
           <Link to="/settings" className="icon-button" aria-label="Instellingen"><GearIcon /></Link>
@@ -70,8 +76,11 @@ export default function Dashboard() {
       </header>
 
       <div className="tabs" role="tablist">
+        <button type="button" role="tab" aria-selected={!filter} onClick={() => setParams({}, { replace: true })}>
+          Alles
+        </button>
         {ROOMS.map((r) => (
-          <button key={r.id} type="button" role="tab" aria-selected={r.id === room.id} onClick={() => setParams({ kamer: r.id }, { replace: true })}>
+          <button key={r.id} type="button" role="tab" aria-selected={r.id === filter?.id} onClick={() => setParams({ kamer: r.id }, { replace: true })}>
             {r.name}
           </button>
         ))}
@@ -84,14 +93,24 @@ export default function Dashboard() {
           <p>Nog geen account gekoppeld.</p>
           <Link className="button primary" to="/settings">Naar instellingen</Link>
         </div>
-      ) : roomDevices.length ? (
-        <div className="card list">
-          {roomDevices.map((device) => <DeviceRow key={device.id} device={device} />)}
-        </div>
       ) : (
-        <div className="card empty">
-          <p>{loaded ? `Nog geen airco gekoppeld in ${room.name}.` : 'Laden…'}</p>
-        </div>
+        rooms.map((room) => {
+          const roomDevices = devicesInRoom(room, devices)
+          return (
+            <section key={room.id} className="room">
+              <h2>{room.name}</h2>
+              {roomDevices.length ? (
+                <div className="card list">
+                  {roomDevices.map((device) => <DeviceRow key={device.id} device={device} />)}
+                </div>
+              ) : (
+                <div className="card empty">
+                  <p>{loaded ? `Nog geen toestellen in ${room.name}.` : 'Laden…'}</p>
+                </div>
+              )}
+            </section>
+          )
+        })
       )}
     </div>
   )

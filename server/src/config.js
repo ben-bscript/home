@@ -4,6 +4,7 @@ export const config = {
   port: Number(process.env.API_PORT ?? 3001),
   clientUrl: process.env.CLIENT_URL ?? 'http://localhost:5173',
   dataDir: fileURLToPath(new URL('../data/', import.meta.url)),
+  location: { name: 'Broechem', latitude: 51.181, longitude: 4.602 },
   daikin: {
     clientId: process.env.DAIKIN_CLIENT_ID ?? '',
     clientSecret: process.env.DAIKIN_CLIENT_SECRET ?? '',

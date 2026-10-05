@@ -7,6 +7,7 @@ import selfsigned from 'selfsigned'
 import { config } from './config.js'
 import { HttpError } from './httpError.js'
 import { providers } from './providers/index.js'
+import { getWeather } from './weather.js'
 
 const app = express()
 app.use(express.json())
@@ -49,6 +50,10 @@ app.get('/api/auth/:provider/callback', async (req, res) => {
 app.post('/api/auth/:provider/logout', (req, res) => {
   getProvider(req).disconnect()
   res.status(204).end()
+})
+
+app.get('/api/weather', async (req, res) => {
+  res.json(await getWeather())
 })
 
 app.get('/api/devices', async (req, res) => {
