@@ -893,3 +893,135 @@ tbody tr {
 .dates input[type='number'] {
   width: 5rem;
 }
+
+/* History charts */
+
+.tabs.small {
+  padding: 3px;
+}
+
+.tabs.small button {
+  padding: 5px 14px;
+  font-size: 12px;
+}
+
+.chart {
+  padding: 10px 0 6px;
+  border-top: 1px solid var(--divider);
+}
+
+.chart-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--text-2);
+  margin-bottom: 6px;
+}
+
+.chart-head strong {
+  color: var(--text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-body {
+  display: flex;
+  gap: 8px;
+}
+
+.chart-plot {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 64px;
+  touch-action: pan-y;
+  cursor: crosshair;
+}
+
+.chart-plot svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.chart-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.chart-area {
+  fill: var(--accent);
+  opacity: 0.1;
+}
+
+.chart-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.chart-cross {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--muted);
+  pointer-events: none;
+}
+
+.chart-dot {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--surface);
+  pointer-events: none;
+}
+
+.chart-range {
+  width: 48px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  text-align: right;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--muted);
+}
+
+.chart-time {
+  text-align: right;
+  margin: -4px 0 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-axis {
+  margin-right: 56px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  padding-top: 2px;
+}
+
+.chart-table {
+  margin-top: 12px;
+  font-size: 13px;
+}
+
+.chart-table summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.chart-table table {
+  margin-top: 6px;
+  font-size: 12px;
+}

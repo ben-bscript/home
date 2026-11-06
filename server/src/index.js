@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import express from 'express'
 import selfsigned from 'selfsigned'
 import { config } from './config.js'
+import { getHistory, startRecording } from './history.js'
 import { HttpError } from './httpError.js'
 import { providers } from './providers/index.js'
 import { getWeather } from './weather.js'
@@ -72,6 +73,10 @@ app.get('/api/devices', async (req, res) => {
   res.json(lists.flat())
 })
 
+app.get('/api/devices/:id/history', (req, res) => {
+  res.json(getHistory(req.params.id, req.query.range))
+})
+
 app.post('/api/devices/:id/commands', async (req, res) => {
   const [providerId, ...rest] = req.params.id.split(':')
   const provider = providers[providerId]
@@ -88,6 +93,7 @@ app.use((err, req, res, next) => {
 app.listen(config.port, () => console.log(`API listening on http://localhost:${config.port}`))
 
 for (const provider of Object.values(providers)) provider.start?.()
+startRecording(Object.values(providers))
 
 // OAuth providers such as Daikin only accept https redirect URIs, so the
 // callback is also served over https with a locally generated certificate.

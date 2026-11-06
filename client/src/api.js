@@ -12,6 +12,7 @@ export const api = {
   discover: (provider) => request(`/providers/${provider}/discover`, { method: 'POST' }),
   weather: () => request('/weather'),
   devices: ({ refresh = false, background = false } = {}) => request(`/devices${refresh ? '?refresh=1' : background ? '?background=1' : ''}`),
+  history: (id, range) => request(`/devices/${encodeURIComponent(id)}/history?range=${range}`),
   command: (id, command, value) =>
     request(`/devices/${encodeURIComponent(id)}/commands`, {
       method: 'POST',

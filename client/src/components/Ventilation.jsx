@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { formatTemp } from '../format.js'
 import { useDevices } from '../store.js'
 import { Chips, Stat } from './bits.jsx'
+import History from './History.jsx'
 import { FanIcon, PowerIcon } from './icons.jsx'
 import Toggle from './Toggle.jsx'
 
@@ -204,6 +205,7 @@ export default function Ventilation({ device, dockSlot }) {
         {v.boost && <Boost boost={v.boost} left={left} disabled={pending} onChange={send('boost')} />}
         {v.silent && <Silent silent={v.silent} disabled={pending} onChange={send('silent')} />}
         {v.breeze && <Breeze breeze={v.breeze} disabled={pending} onChange={send('breeze')} />}
+        <History deviceId={device.id} />
 
         <div className="card">
           <div className="card-head">
