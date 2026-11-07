@@ -37,9 +37,9 @@ let settings = loadSettings()
 
 function loadSettings() {
   try {
-    return { rooms: {}, ...JSON.parse(readFileSync(stateFile, 'utf8')) }
+    return { rooms: {}, names: {}, ...JSON.parse(readFileSync(stateFile, 'utf8')) }
   } catch {
-    return { rooms: {} }
+    return { rooms: {}, names: {} }
   }
 }
 
@@ -133,7 +133,9 @@ function normalize(device, light) {
   const available = availability.get(device.friendly_name)
   const { vendor, model, description } = device.definition
   const baseName = device.friendly_name
-  const name = light.key === device.ieee_address ? baseName : `${baseName} ${light.endpoint}`
+  // Names are kept by the app, so several lights may share one (Zigbee2MQTT
+  // needs unique names because they are its MQTT topics).
+  const name = settings.names[`${id}:${light.key}`] ?? (light.key === device.ieee_address ? baseName : `${baseName} ${light.endpoint}`)
 
   return {
     id: `${id}:${light.key}`,
@@ -394,18 +396,10 @@ export async function sendCommand(key, command, value) {
   }
 
   if (command === 'name') {
-    const to = String(value ?? '').trim()
+    const to = String(value ?? '').trim().slice(0, 60)
     if (!to) throw new HttpError(400, 'Geef een naam op')
-    if (to !== device.friendly_name) {
-      await bridgeRequest('device/rename', { from: device.ieee_address, to, homeassistant_rename: false })
-      // The new name arrives with the next device list; apply it right away too.
-      const renamed = { ...device, friendly_name: to }
-      devices.set(device.ieee_address, renamed)
-      byName.delete(device.friendly_name)
-      byName.set(to, device.ieee_address)
-      availability.set(to, availability.get(device.friendly_name))
-      return normalize(renamed, light)
-    }
+    settings.names[`${id}:${key}`] = to
+    saveSettings()
     return normalize(device, light)
   }
 

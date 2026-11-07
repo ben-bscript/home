@@ -111,13 +111,13 @@ function RoomPicker({ device, disabled, onChange }) {
 }
 
 function Rename({ device, disabled, onRename }) {
-  const [name, setName] = useState(device.info.friendlyName)
+  const [name, setName] = useState(device.name)
 
   useEffect(() => {
-    setName(device.info.friendlyName)
-  }, [device.info.friendlyName])
+    setName(device.name)
+  }, [device.name])
 
-  const changed = name.trim() && name.trim() !== device.info.friendlyName
+  const changed = name.trim() && name.trim() !== device.name
   return (
     <form
       className="rename"
@@ -221,6 +221,7 @@ export default function Light({ device, dockSlot }) {
               ['Omschrijving', info.description],
               ['Kanaal', info.endpoint],
               ['Signaal', info.linkquality != null && `${info.linkquality} / 255`],
+              ['Naam in Zigbee2MQTT', info.friendlyName !== device.name && info.friendlyName],
               ['IEEE-adres', info.ieeeAddress],
               ['Laatst gezien', info.lastSeen && new Date(info.lastSeen).toLocaleString('nl-BE')],
             ]
