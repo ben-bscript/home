@@ -5,6 +5,7 @@ import { Chips, Stat } from '../components/bits.jsx'
 import Consumption from '../components/Consumption.jsx'
 import { BackIcon, FanIcon, PowerIcon, SnowIcon, TimerIcon } from '../components/icons.jsx'
 import ScheduleEditor from '../components/ScheduleEditor.jsx'
+import Light from '../components/Light.jsx'
 import TempCard from '../components/TempCard.jsx'
 import Toggle from '../components/Toggle.jsx'
 import Ventilation from '../components/Ventilation.jsx'
@@ -277,7 +278,8 @@ export default function Device() {
         {!device && !error && <p className="muted center">{loaded ? 'Toestel niet gevonden.' : 'Laden…'}</p>}
         {device?.climate && <Climate device={device} dockSlot={dockSlot} />}
         {device?.ventilation && <Ventilation device={device} dockSlot={dockSlot} />}
-        {device && !device.climate && !device.ventilation && <p className="muted center">Dit toestel wordt nog niet ondersteund.</p>}
+        {device?.light && <Light device={device} dockSlot={dockSlot} />}
+        {device && !device.climate && !device.ventilation && !device.light && <p className="muted center">Dit toestel wordt nog niet ondersteund.</p>}
       </div>
       <div ref={setDockSlot} />
     </div>

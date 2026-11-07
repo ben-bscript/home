@@ -10,6 +10,12 @@ export const api = {
   providers: () => request('/providers'),
   logout: (provider) => request(`/auth/${provider}/logout`, { method: 'POST' }),
   discover: (provider) => request(`/providers/${provider}/discover`, { method: 'POST' }),
+  pair: (provider, seconds) =>
+    request(`/providers/${provider}/pair`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ seconds }),
+    }),
   weather: () => request('/weather'),
   devices: ({ refresh = false, background = false } = {}) => request(`/devices${refresh ? '?refresh=1' : background ? '?background=1' : ''}`),
   history: (id, range) => request(`/devices/${encodeURIComponent(id)}/history?range=${range}`),

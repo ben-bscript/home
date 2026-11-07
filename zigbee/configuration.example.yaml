@@ -1,0 +1,29 @@
+# Copied to data/configuration.yaml by install.sh. Zigbee2MQTT replaces the
+# GENERATE values with a random network key and ids on first start.
+version: 4
+homeassistant:
+  enabled: false
+frontend:
+  enabled: true
+  port: 8080
+mqtt:
+  base_topic: zigbee2mqtt
+  server: mqtt://mosquitto:1883
+serial:
+  port: /dev/zigbee
+  # ember for the ZBDongle-E (Silicon Labs EFR32MG21), zstack for the ZBDongle-P.
+  adapter: ember
+advanced:
+  network_key: GENERATE
+  pan_id: GENERATE
+  ext_pan_id: GENERATE
+  # Channel 25 stays clear of the busiest Wi-Fi channels (1, 6, 11).
+  channel: 25
+  log_level: info
+  last_seen: ISO_8601
+# Report lights as offline when they lose power.
+availability:
+  enabled: true
+device_options:
+  # Keep the last state on the broker, so the app knows it right after a restart.
+  retain: true

@@ -1,0 +1,31 @@
+# Zigbee2MQTT + Mosquitto for the Sonoff Zigbee 3.0 USB Dongle Plus.
+# Run ./install.sh once; it writes .env (ZIGBEE_ADAPTER) and data/configuration.yaml.
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    # Only the home server (this machine) talks to the broker.
+    ports:
+      - 127.0.0.1:1883:1883
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+
+  zigbee2mqtt:
+    image: koenkk/zigbee2mqtt:latest
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+    # Zigbee2MQTT's own web interface, handy for troubleshooting: http://<server>:8080
+    ports:
+      - 8080:8080
+    volumes:
+      - ./data:/app/data
+      - /run/udev:/run/udev:ro
+    devices:
+      - ${ZIGBEE_ADAPTER:?run ./install.sh first}:/dev/zigbee
+    environment:
+      TZ: Europe/Brussels
+
+volumes:
+  mosquitto-data:

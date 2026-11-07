@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { BackIcon } from '../components/icons.jsx'
+import ZigbeeSettings from '../components/ZigbeeSettings.jsx'
 import { useProviders } from '../store.js'
 
 export default function Settings() {
@@ -32,7 +33,7 @@ export default function Settings() {
           <div className="card" key={p.id}>
             <div className="card-head">
               <h2>{p.name}</h2>
-              <span className={`badge${p.connected ? ' ok' : ''}`}>{p.connected ? (p.local ? 'Gevonden' : 'Gekoppeld') : p.local ? 'Niet gevonden' : 'Niet gekoppeld'}</span>
+              <span className={`badge${p.connected ? ' ok' : ''}`}>{p.connected ? (p.zigbee ? 'Verbonden' : p.local ? 'Gevonden' : 'Gekoppeld') : p.zigbee ? 'Offline' : p.local ? 'Niet gevonden' : 'Niet gekoppeld'}</span>
             </div>
 
             {!p.configured && (
@@ -47,7 +48,9 @@ export default function Settings() {
               </p>
             )}
 
-            {p.local ? (
+            {p.zigbee ? (
+              <ZigbeeSettings provider={p} />
+            ) : p.local ? (
               <>
                 <p className="muted">
                   {p.host

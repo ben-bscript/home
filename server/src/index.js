@@ -55,6 +55,12 @@ app.post('/api/providers/:provider/discover', async (req, res) => {
   res.json(provider.status())
 })
 
+app.post('/api/providers/:provider/pair', async (req, res) => {
+  const provider = getProvider(req)
+  if (!provider.permitJoin) throw new HttpError(400, `${provider.name} cannot pair devices`)
+  res.json(await provider.permitJoin(req.body?.seconds ?? 0))
+})
+
 app.post('/api/auth/:provider/logout', (req, res) => {
   getProvider(req).disconnect()
   res.status(204).end()

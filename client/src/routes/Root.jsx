@@ -10,14 +10,14 @@ export default function Root() {
   }, [fetchProviders])
 
   // Devices on the local network are cheap to read, so keep them current.
-  const hasLocal = useDevices((s) => s.devices.some((d) => d.provider === 'renson'))
+  const hasLocal = useDevices((s) => s.devices.some((d) => d.provider === 'renson' || d.provider === 'zigbee'))
   const poll = useDevices((s) => s.poll)
 
   useEffect(() => {
     if (!hasLocal) return
     const timer = setInterval(() => {
       if (document.visibilityState === 'visible') poll()
-    }, 15000)
+    }, 10000)
     return () => clearInterval(timer)
   }, [hasLocal, poll])
 

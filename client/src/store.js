@@ -16,6 +16,14 @@ export const useProviders = create((set, get) => ({
     await api.discover(id)
     await Promise.all([get().fetch(), useDevices.getState().fetch()])
   },
+  pair: async (id, seconds) => {
+    try {
+      const status = await api.pair(id, seconds)
+      set((s) => ({ providers: s.providers.map((p) => (p.id === id ? status : p)), error: null }))
+    } catch (err) {
+      set({ error: err.message })
+    }
+  },
   logout: async (id) => {
     await api.logout(id)
     useDevices.setState({ devices: [], loaded: false })
@@ -63,6 +71,8 @@ export const useDevices = create((set, get) => ({
       // keep the last known state
     }
   },
+  // The same command for several devices, e.g. every light off.
+  commandAll: (ids, command, value) => Promise.all(ids.map((id) => get().command(id, command, value))),
   command: async (id, command, value) => {
     set((s) => ({ pending: { ...s.pending, [id]: true }, error: null }))
     try {

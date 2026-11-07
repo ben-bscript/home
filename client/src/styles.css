@@ -1025,3 +1025,133 @@ tbody tr {
   margin-top: 6px;
   font-size: 12px;
 }
+
+/* Lights */
+
+.bulb {
+  align-self: center;
+  flex: none;
+  width: 148px;
+  height: 148px;
+  margin: 26px 0 30px;
+  border: 0;
+  border-radius: 50%;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--soft);
+  color: var(--muted);
+  transition: background 0.3s, box-shadow 0.3s, color 0.3s;
+}
+
+.bulb.on {
+  --glow: #ffd27a;
+  background: color-mix(in srgb, var(--glow) 28%, var(--surface));
+  color: color-mix(in srgb, var(--glow) 70%, #3a3000);
+  box-shadow: 0 0 0 10px color-mix(in srgb, var(--glow) 14%, transparent), 0 0 60px color-mix(in srgb, var(--glow) 55%, transparent);
+}
+
+.icon-circle.lit {
+  background: color-mix(in srgb, var(--glow, #ffd27a) 30%, var(--surface));
+  color: color-mix(in srgb, var(--glow, #ffd27a) 70%, #3a3000);
+}
+
+input[type='range'].tinted::-webkit-slider-runnable-track {
+  background: var(--track-bg);
+}
+
+input[type='range'].tinted::-moz-range-track {
+  background: var(--track-bg);
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.swatch {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--border);
+  cursor: pointer;
+}
+
+.swatch.active {
+  box-shadow: 0 0 0 2px var(--text);
+}
+
+.swatch.custom {
+  position: relative;
+  overflow: hidden;
+  background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red);
+}
+
+.swatch.custom input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.room-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.room-head h2 {
+  margin-bottom: 0;
+}
+
+.link-button {
+  border: 0;
+  background: none;
+  padding: 4px;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.lights-summary {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.lights-summary > span:nth-child(2) {
+  flex: 1;
+}
+
+.pairing {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.pairing li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* Room tabs scroll once there are more rooms than fit. */
+.tabs {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabs button {
+  flex: 1 0 auto;
+  white-space: nowrap;
+  padding-inline: 12px;
+}

@@ -46,3 +46,9 @@ export const GearIcon = (props) => (
 export const RefreshIcon = (props) => (
   <Icon strokeWidth={1.8} {...props}><path d="M20 11a8 8 0 1 0-2.3 6.3M20 4v7h-7" /></Icon>
 )
+
+export const BulbIcon = (props) => (
+  <Icon strokeWidth={1.8} {...props}>
+    <path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z" />
+  </Icon>
+)
