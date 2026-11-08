@@ -38,9 +38,9 @@ let settings = loadSettings()
 
 function loadSettings() {
   try {
-    return { rooms: {}, names: {}, ...JSON.parse(readFileSync(stateFile, 'utf8')) }
+    return { rooms: {}, names: {}, powerOn: {}, ...JSON.parse(readFileSync(stateFile, 'utf8')) }
   } catch {
-    return { rooms: {}, names: {} }
+    return { rooms: {}, names: {}, powerOn: {} }
   }
 }
 
@@ -72,6 +72,11 @@ function lightsOf(device) {
   const effectExpose = exposes.find((e) => e.type === 'enum' && e.name === 'effect' && Array.isArray(e.values))
   const effects = effectExpose ? effectExpose.values.filter((v) => !NON_EFFECTS.has(v)) : []
   const stopEffect = effectExpose?.values.find((v) => STOP_EFFECTS.includes(v)) ?? null
+  // What the lamp does when mains power returns (generic or Hue-specific).
+  const powerOn =
+    exposes.find((e) => e.type === 'enum' && e.name === 'power_on_behavior' && Array.isArray(e.values)) ??
+    exposes.find((e) => e.type === 'enum' && e.name === 'hue_power_on_behavior' && Array.isArray(e.values)) ??
+    null
   for (const expose of exposes) {
     if ((expose.type !== 'light' && expose.type !== 'switch') || !expose.features) continue
     const feature = (name) => expose.features.find((f) => f.name === name)
@@ -87,6 +92,7 @@ function lightsOf(device) {
       effects,
       effectProperty: effectExpose?.property ?? 'effect',
       stopEffect,
+      powerOn,
     })
   }
   const multiple = lights.length > 1
@@ -180,6 +186,10 @@ function normalize(device, light) {
       color: light.color ? { value: state.color_mode && state.color_mode !== 'color_temp' ? colorOf(value(light.color)) : null } : null,
       effects: light.effects.length ? light.effects : null,
       effect: runningEffects.get(light.key) ?? null,
+      // Hue doesn't report this back, so what the app set is remembered.
+      powerOn: light.powerOn
+        ? { values: light.powerOn.values, value: state[light.powerOn.property] ?? settings.powerOn[`${id}:${light.key}`] ?? null }
+        : null,
       colorMode: state.color_mode ?? null,
     },
     info: {
@@ -428,6 +438,11 @@ function toPayload(light, command, value) {
       }
       return body
     }
+    case 'powerOn': {
+      if (!light.powerOn) throw new HttpError(400, 'Deze lamp heeft geen instelling voor na een stroomonderbreking')
+      if (!light.powerOn.values.includes(value)) throw new HttpError(400, `Onbekende waarde "${value}"`)
+      return { [light.powerOn.property]: value }
+    }
     case 'effect': {
       if (!light.effects.length) throw new HttpError(400, 'Deze lamp heeft geen effecten')
       if (value == null || value === '') {
@@ -469,12 +484,16 @@ export async function sendCommand(key, command, value) {
   if (command === 'effect') {
     if (value) runningEffects.set(light.key, value)
     else runningEffects.delete(light.key)
-  } else if (command !== 'brightness') runningEffects.delete(light.key)
+  } else if (command !== 'brightness' && command !== 'powerOn') runningEffects.delete(light.key)
   // Effects are fire-and-forget: Hue lamps start them without reporting a new
   // state, so don't hold the app up waiting for one.
   const reply = command === 'effect' ? nextState(device.ieee_address, 500).catch(() => {}) : nextState(device.ieee_address, COMMAND_TIMEOUT)
   publish(`${device.friendly_name}/set`, payload)
   await reply
+  if (command === 'powerOn') {
+    settings.powerOn[`${id}:${key}`] = value
+    saveSettings()
+  }
   return normalize(devices.get(device.ieee_address), light)
 }
 

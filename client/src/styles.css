@@ -179,6 +179,7 @@ select {
 }
 
 .card > .muted + button,
+.card > .muted + .chips,
 .card > .muted + .button {
   margin-top: 12px;
 }

@@ -22,6 +22,16 @@ const SCENES = [
   { id: 'aurora', name: 'Noorderlicht', brightness: 50, color: '#5ce0c6', swatch: '#5ce0c6' },
 ]
 
+// Power-on behaviour: generic Zigbee values and Hue's own.
+const POWER_ON_LABELS = {
+  previous: 'Vorige toestand',
+  recover: 'Vorige toestand',
+  on: 'Aan',
+  default: 'Aan (warm wit)',
+  off: 'Uit',
+  toggle: 'Omgekeerd',
+}
+
 const EFFECT_LABELS = {
   candle: 'Kaars',
   fireplace: 'Haardvuur',
@@ -280,6 +290,22 @@ export default function Light({ device, dockSlot }) {
           </div>
           <RoomPicker device={device} disabled={pending} onChange={send('room')} />
         </div>
+
+        {light.powerOn && (
+          <div className="card">
+            <div className="card-head">
+              <h2>Na een stroomonderbreking</h2>
+            </div>
+            <p className="muted">Wat de lamp doet als hij via de schakelaar weer stroom krijgt. Met "Vorige toestand" houdt hij zijn kleur en helderheid.</p>
+            <div className="chips">
+              {light.powerOn.values.map((v) => (
+                <button key={v} type="button" className={light.powerOn.value === v ? 'active' : ''} disabled={pending} onClick={() => command(device.id, 'powerOn', v)}>
+                  {POWER_ON_LABELS[v] ?? v}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="card">
           <div className="card-head">
