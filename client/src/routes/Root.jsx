@@ -9,8 +9,24 @@ export default function Root() {
     fetchProviders()
   }, [fetchProviders])
 
+  // Zigbee devices push their changes live; the Renson Waves is polled.
+  const update = useDevices((s) => s.update)
+  const setProvider = useProviders((s) => s.setProvider)
+
+  useEffect(() => {
+    const source = new EventSource('/api/events')
+    source.onmessage = (e) => {
+      const event = JSON.parse(e.data)
+      if (event.type === 'devices') {
+        update(event.provider, event.devices)
+        if (event.status) setProvider(event.status)
+      }
+    }
+    return () => source.close()
+  }, [update, setProvider])
+
   // Devices on the local network are cheap to read, so keep them current.
-  const hasLocal = useDevices((s) => s.devices.some((d) => d.provider === 'renson' || d.provider === 'zigbee'))
+  const hasLocal = useDevices((s) => s.devices.some((d) => d.provider === 'renson'))
   const poll = useDevices((s) => s.poll)
 
   useEffect(() => {

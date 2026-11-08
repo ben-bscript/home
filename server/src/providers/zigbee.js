@@ -6,6 +6,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import mqtt from 'mqtt'
 import { config } from '../config.js'
+import { changed } from '../events.js'
 import { HttpError } from '../httpError.js'
 
 const COMMAND_TIMEOUT = 4000
@@ -198,7 +199,9 @@ function onMessage(topic, payload, packet) {
   const data = parse(payload)
 
   if (path === 'bridge/state') {
+    const was = bridgeOnline
     bridgeOnline = isOnline(data)
+    if (bridgeOnline !== was) notify()
     return
   }
   if (path === 'bridge/info') {
@@ -206,7 +209,10 @@ function onMessage(topic, payload, packet) {
     return
   }
   if (path === 'bridge/devices') {
-    if (Array.isArray(data)) onDevices(data)
+    if (Array.isArray(data)) {
+      onDevices(data)
+      notify()
+    }
     return
   }
   if (path === 'bridge/event') {
@@ -230,7 +236,9 @@ function onMessage(topic, payload, packet) {
 
   if (path.endsWith('/availability')) {
     const friendlyName = path.slice(0, -'/availability'.length)
+    const was = availability.get(friendlyName)
     availability.set(friendlyName, isOnline(data))
+    if (availability.get(friendlyName) !== was) notify()
     return
   }
 
@@ -241,11 +249,17 @@ function onMessage(topic, payload, packet) {
   // A live (not retained) state message means the device just answered, even
   // when Zigbee2MQTT's availability check had given up on it.
   if (!packet?.retain) availability.set(path, true)
+  notify()
   const callbacks = waiters.get(ieee)
   if (callbacks) {
     waiters.delete(ieee)
     for (const callback of callbacks) callback()
   }
+}
+
+// Tell the app something changed; it gets the new device list over /api/events.
+function notify() {
+  changed({ id, listDevices, status })
 }
 
 function publish(path, body) {

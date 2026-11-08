@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import express from 'express'
 import selfsigned from 'selfsigned'
 import { config } from './config.js'
+import { subscribe } from './events.js'
 import { getHistory, startRecording } from './history.js'
 import { HttpError } from './httpError.js'
 import { providers } from './providers/index.js'
@@ -65,6 +66,8 @@ app.post('/api/auth/:provider/logout', (req, res) => {
   getProvider(req).disconnect()
   res.status(204).end()
 })
+
+app.get('/api/events', subscribe)
 
 app.get('/api/weather', async (req, res) => {
   res.json(await getWeather())
