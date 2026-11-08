@@ -72,10 +72,11 @@ function lightsOf(device) {
   const effectExpose = exposes.find((e) => e.type === 'enum' && e.name === 'effect' && Array.isArray(e.values))
   const effects = effectExpose ? effectExpose.values.filter((v) => !NON_EFFECTS.has(v)) : []
   const stopEffect = effectExpose?.values.find((v) => STOP_EFFECTS.includes(v)) ?? null
-  // What the lamp does when mains power returns (generic or Hue-specific).
+  // What the lamp does when mains power returns. Hue's own setting ("recover")
+  // also restores colour and brightness; the generic one only the on/off state.
   const powerOn =
-    exposes.find((e) => e.type === 'enum' && e.name === 'power_on_behavior' && Array.isArray(e.values)) ??
     exposes.find((e) => e.type === 'enum' && e.name === 'hue_power_on_behavior' && Array.isArray(e.values)) ??
+    exposes.find((e) => e.type === 'enum' && e.name === 'power_on_behavior' && Array.isArray(e.values)) ??
     null
   for (const expose of exposes) {
     if ((expose.type !== 'light' && expose.type !== 'switch') || !expose.features) continue
