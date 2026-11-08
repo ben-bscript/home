@@ -2,9 +2,45 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { allRooms, roomOfDevice } from '../rooms.js'
 import { useDevices } from '../store.js'
+import ColorWheel from './ColorWheel.jsx'
 import { BulbIcon, PowerIcon } from './icons.jsx'
 
 const COLORS = ['#ff4d4d', '#ff9f43', '#ffd84d', '#7bed9f', '#4dd2ff', '#5f6bff', '#b46bff', '#ff6bd5']
+
+// Presets in the style of Hue's scenes. White scenes use a colour temperature
+// (mired, warm is high); colour scenes a colour. Both set the brightness.
+const SCENES = [
+  { id: 'relax', name: 'Ontspannen', brightness: 56, colorTemp: 447, swatch: '#ffb35c' },
+  { id: 'read', name: 'Lezen', brightness: 100, colorTemp: 346, swatch: '#ffd9a0' },
+  { id: 'focus', name: 'Concentreren', brightness: 100, colorTemp: 233, swatch: '#f4f1e6' },
+  { id: 'energy', name: 'Energie', brightness: 100, colorTemp: 156, swatch: '#dcebff' },
+  { id: 'night', name: 'Nachtlampje', brightness: 1, colorTemp: 454, swatch: '#b8742b' },
+  { id: 'sunset', name: 'Zonsondergang', brightness: 70, color: '#ff6a1f', swatch: '#ff6a1f' },
+  { id: 'tropic', name: 'Tropisch', brightness: 80, color: '#ff3d8b', swatch: '#ff3d8b' },
+  { id: 'forest', name: 'Bos', brightness: 60, color: '#2fbf71', swatch: '#2fbf71' },
+  { id: 'ocean', name: 'Oceaan', brightness: 70, color: '#1f8fff', swatch: '#1f8fff' },
+  { id: 'aurora', name: 'Noorderlicht', brightness: 50, color: '#5ce0c6', swatch: '#5ce0c6' },
+]
+
+const EFFECT_LABELS = {
+  candle: 'Kaars',
+  fireplace: 'Haardvuur',
+  colorloop: 'Kleurenlus',
+  color_loop: 'Kleurenlus',
+  sunrise: 'Zonsopgang',
+  sunset: 'Zonsondergang',
+  sparkle: 'Fonkelen',
+  opal: 'Opaal',
+  glisten: 'Glinsteren',
+  prism: 'Prisma',
+  cosmos: 'Kosmos',
+  sunbeam: 'Zonnestraal',
+  enchant: 'Betoveren',
+  drops: 'Druppels',
+  underwater: 'Onderwater',
+  breathe: 'Ademen',
+  blink: 'Knipperen',
+}
 const WARM = '#ffb35c'
 const COOL = '#e6f0ff'
 
@@ -189,18 +225,51 @@ export default function Light({ device, dockSlot }) {
           </div>
         )}
 
+        {(light.colorTemp || light.color) && (
+          <div className="card">
+            <div className="card-head">
+              <h2>Scènes</h2>
+            </div>
+            <div className="scenes">
+              {SCENES.filter((sc) => (sc.color ? light.color : light.colorTemp)).map((sc) => (
+                <button key={sc.id} type="button" className="scene" disabled={pending} onClick={() => command(device.id, 'scene', sc)}>
+                  <span className="scene-dot" style={{ background: sc.swatch }} />
+                  {sc.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {light.color && (
           <div className="card">
             <div className="card-head">
               <h2>Kleur</h2>
+              {light.color.value && <span className="scene-dot" style={{ background: light.color.value }} aria-label={`Huidige kleur ${light.color.value}`} />}
             </div>
+            <ColorWheel value={light.color.value} disabled={pending} onChange={(hex) => command(device.id, 'color', hex)} />
             <div className="swatches">
               {COLORS.map((c) => (
                 <button key={c} type="button" className={`swatch${light.color.value === c ? ' active' : ''}`} style={{ background: c }} aria-label={`Kleur ${c}`} disabled={pending} onClick={() => command(device.id, 'color', c)} />
               ))}
-              <label className="swatch custom" aria-label="Eigen kleur">
-                <input type="color" value={light.color.value ?? '#ffffff'} disabled={pending} onChange={(e) => command(device.id, 'color', e.target.value)} />
-              </label>
+            </div>
+          </div>
+        )}
+
+        {light.effects && (
+          <div className="card">
+            <div className="card-head">
+              <h2>Effecten</h2>
+              {light.effect && (
+                <button type="button" className="link-button" disabled={pending} onClick={() => command(device.id, 'effect', null)}>Stoppen</button>
+              )}
+            </div>
+            <div className="chips">
+              {light.effects.map((ef) => (
+                <button key={ef} type="button" className={light.effect === ef ? 'active' : ''} disabled={pending} onClick={() => command(device.id, 'effect', light.effect === ef ? null : ef)}>
+                  {EFFECT_LABELS[ef] ?? ef.replace(/_/g, ' ')}
+                </button>
+              ))}
             </div>
           </div>
         )}

@@ -1155,3 +1155,57 @@ input[type='range'].tinted::-moz-range-track {
   white-space: nowrap;
   padding-inline: 12px;
 }
+
+/* Colour wheel, scenes and effects */
+
+.wheel {
+  position: relative;
+  width: min(240px, 70vw);
+  aspect-ratio: 1;
+  margin: 4px auto 16px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, #fff 0%, rgba(255, 255, 255, 0.85) 20%, rgba(255, 255, 255, 0) 72%),
+    conic-gradient(from 90deg, red, yellow, lime, aqua, blue, magenta, red);
+  box-shadow: var(--shadow), inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.wheel.disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.wheel-thumb {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.scenes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+.scene {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.scene-dot {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+}

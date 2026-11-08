@@ -67,7 +67,12 @@ const isOnline = (value) => (typeof value === 'object' ? value?.state : value) =
 function lightsOf(device) {
   if (!device?.definition || device.type === 'Coordinator' || device.disabled) return []
   const lights = []
-  for (const expose of device.definition.exposes ?? []) {
+  const exposes = device.definition.exposes ?? []
+  // Light effects (Hue: candle, fireplace, colorloop…) are a device-level enum.
+  const effectExpose = exposes.find((e) => e.type === 'enum' && e.name === 'effect' && Array.isArray(e.values))
+  const effects = effectExpose ? effectExpose.values.filter((v) => !NON_EFFECTS.has(v)) : []
+  const stopEffect = effectExpose?.values.find((v) => STOP_EFFECTS.includes(v)) ?? null
+  for (const expose of exposes) {
     if ((expose.type !== 'light' && expose.type !== 'switch') || !expose.features) continue
     const feature = (name) => expose.features.find((f) => f.name === name)
     const state = feature('state')
@@ -79,6 +84,9 @@ function lightsOf(device) {
       brightness: feature('brightness'),
       colorTemp: feature('color_temp'),
       color: feature('color_xy') ?? feature('color_hs'),
+      effects,
+      effectProperty: effectExpose?.property ?? 'effect',
+      stopEffect,
     })
   }
   const multiple = lights.length > 1
@@ -91,6 +99,12 @@ function findLight(key) {
   const light = lightsOf(device).find((l) => l.key === key || (!endpoint && l.key === ieee))
   return light ? { device, light } : null
 }
+
+// Effect values that are not effects to show (service commands and stop values).
+const NON_EFFECTS = new Set(['okay', 'channel_change', 'finish_effect', 'stop_effect', 'stop_hue_effect', 'identify'])
+const STOP_EFFECTS = ['stop_hue_effect', 'finish_effect', 'stop_effect']
+// Zigbee2MQTT doesn't report the running effect, so remember what was started.
+const runningEffects = new Map()
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
 const toHex = (r, g, b) => `#${[r, g, b].map((v) => Math.round(clamp(v, 0, 1) * 255).toString(16).padStart(2, '0')).join('')}`
@@ -164,6 +178,8 @@ function normalize(device, light) {
           }
         : null,
       color: light.color ? { value: state.color_mode && state.color_mode !== 'color_temp' ? colorOf(value(light.color)) : null } : null,
+      effects: light.effects.length ? light.effects : null,
+      effect: runningEffects.get(light.key) ?? null,
       colorMode: state.color_mode ?? null,
     },
     info: {
@@ -394,6 +410,33 @@ function toPayload(light, command, value) {
       if (!/^#[0-9a-f]{6}$/i.test(value)) throw new HttpError(400, 'Ongeldige kleur')
       return { [light.color.property]: { hex: value }, transition: 0.3 }
     }
+    // A scene sets several things at once: { brightness, colorTemp } or { brightness, color }.
+    case 'scene': {
+      const body = { [light.state.property]: light.state.value_on ?? 'ON', transition: 0.5 }
+      if (value?.brightness != null && light.brightness) {
+        const max = light.brightness.value_max ?? 254
+        body[light.brightness.property] = clamp(Math.round((Number(value.brightness) / 100) * max), 1, max)
+      }
+      if (value?.color && light.color) {
+        if (!/^#[0-9a-f]{6}$/i.test(value.color)) throw new HttpError(400, 'Ongeldige kleur')
+        body[light.color.property] = { hex: value.color }
+      } else if (value?.colorTemp != null && light.colorTemp) {
+        body[light.colorTemp.property] = clamp(Math.round(Number(value.colorTemp)), light.colorTemp.value_min ?? 150, light.colorTemp.value_max ?? 500)
+      } else if (value?.color && light.colorTemp) {
+        // A colour scene on a white-only lamp: fall back to warm white.
+        body[light.colorTemp.property] = light.colorTemp.value_max ?? 400
+      }
+      return body
+    }
+    case 'effect': {
+      if (!light.effects.length) throw new HttpError(400, 'Deze lamp heeft geen effecten')
+      if (value == null || value === '') {
+        if (!light.stopEffect) throw new HttpError(400, 'Deze lamp kan een effect niet stoppen')
+        return { [light.effectProperty]: light.stopEffect }
+      }
+      if (!light.effects.includes(value)) throw new HttpError(400, `Onbekend effect "${value}"`)
+      return { [light.effectProperty]: value }
+    }
     default:
       throw new HttpError(400, `Unknown command "${command}"`)
   }
@@ -422,7 +465,14 @@ export async function sendCommand(key, command, value) {
 
   if (!mqttConnected || !bridgeOnline) throw new HttpError(409, 'Zigbee2MQTT is niet bereikbaar.')
   const payload = toPayload(light, command, value)
-  const reply = nextState(device.ieee_address, COMMAND_TIMEOUT)
+  // Setting a colour, white, scene or power state ends a running effect.
+  if (command === 'effect') {
+    if (value) runningEffects.set(light.key, value)
+    else runningEffects.delete(light.key)
+  } else if (command !== 'brightness') runningEffects.delete(light.key)
+  // Effects are fire-and-forget: Hue lamps start them without reporting a new
+  // state, so don't hold the app up waiting for one.
+  const reply = command === 'effect' ? nextState(device.ieee_address, 500).catch(() => {}) : nextState(device.ieee_address, COMMAND_TIMEOUT)
   publish(`${device.friendly_name}/set`, payload)
   await reply
   return normalize(devices.get(device.ieee_address), light)
