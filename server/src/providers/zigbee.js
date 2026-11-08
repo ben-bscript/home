@@ -113,6 +113,14 @@ const STOP_EFFECTS = ['stop_hue_effect', 'finish_effect', 'stop_effect']
 // Zigbee2MQTT doesn't report the running effect, so remember what was started.
 const runningEffects = new Map()
 
+// A lamp saves its own state only a few seconds after a change, so after a
+// power cut it may come back with an older colour. When a lamp set to "previous"
+// announces itself after power-up, the state last seen is sent to it again.
+const RESTORE_DELAY = 2000
+const RESTORE_WINDOW = 10000
+const lastStates = new Map()
+const announcedAt = new Map()
+
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
 const toHex = (r, g, b) => `#${[r, g, b].map((v) => Math.round(clamp(v, 0, 1) * 255).toString(16).padStart(2, '0')).join('')}`
 
@@ -250,6 +258,10 @@ function onMessage(topic, payload, packet) {
     if (data.type === 'device_joined') addEvent({ ieee, name: friendlyName, status: 'joined' })
     else if (data.type === 'device_interview') addEvent({ ieee, name: friendlyName, status: data.data.status, supported: data.data.supported })
     else if (data.type === 'device_leave') addEvent({ ieee, name: friendlyName, status: 'left' })
+    else if (data.type === 'device_announce') {
+      announcedAt.set(ieee, Date.now())
+      setTimeout(() => restore(ieee), RESTORE_DELAY)
+    }
     return
   }
   if (path.startsWith('bridge/response/')) {
@@ -277,6 +289,8 @@ function onMessage(topic, payload, packet) {
   // A live (not retained) state message means the device just answered, even
   // when Zigbee2MQTT's availability check had given up on it.
   if (!packet?.retain) availability.set(path, true)
+  // What the lamp reports right after power-up is its default, not what we want to keep.
+  if (Date.now() - (announcedAt.get(ieee) ?? 0) > RESTORE_WINDOW) lastStates.set(ieee, { ...states.get(ieee) })
   notify()
   const callbacks = waiters.get(ieee)
   if (callbacks) {
@@ -288,6 +302,28 @@ function onMessage(topic, payload, packet) {
 // Tell the app something changed; it gets the new device list over /api/events.
 function notify() {
   changed({ id, listDevices, status })
+}
+
+function restore(ieee) {
+  const device = devices.get(ieee)
+  const lights = device ? lightsOf(device) : []
+  // Only single lights; a multi-endpoint relay has nothing to restore.
+  if (lights.length !== 1) return
+  const [light] = lights
+  const wanted = settings.powerOn[`${id}:${light.key}`]
+  if (wanted !== 'previous' && wanted !== 'recover') return
+  const last = lastStates.get(ieee)
+  if (!last || last[light.state.property] !== (light.state.value_on ?? 'ON')) return
+
+  const body = { [light.state.property]: light.state.value_on ?? 'ON' }
+  if (light.brightness && last[light.brightness.property] != null) body[light.brightness.property] = last[light.brightness.property]
+  if (light.color && last.color_mode && last.color_mode !== 'color_temp' && last[light.color.property]) {
+    const { x, y, hue, saturation, hex } = last[light.color.property]
+    body[light.color.property] = hex ? { hex } : x != null ? { x, y } : { hue, saturation }
+  } else if (light.colorTemp && last[light.colorTemp.property] != null) {
+    body[light.colorTemp.property] = last[light.colorTemp.property]
+  }
+  publish(`${device.friendly_name}/set`, body)
 }
 
 function publish(path, body) {
