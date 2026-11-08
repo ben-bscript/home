@@ -137,10 +137,12 @@ const kelvin = (mired) => Math.round(1e6 / mired / 50) * 50
 export default function Light({ device, dockSlot }) {
   const command = useDevices((s) => s.command)
   const offline = device.online === false
-  const pending = useDevices((s) => s.pending[device.id]) || offline
+  // Zigbee2MQTT can mark a lamp offline while it still listens, so it can
+  // always be tried; an answer brings it back online.
+  const pending = useDevices((s) => s.pending[device.id])
   const { light, info } = device
   const send = (name) => (value) => command(device.id, name, value)
-  const glow = lightColor(light)
+  const glow = offline ? null : lightColor(light)
 
   const [brightness, setBrightness] = useDraft(light.brightness?.value ?? 100, send('brightness'))
   const [mired, setMired] = useDraft(light.colorTemp?.value ?? light.colorTemp?.min ?? 250, send('colorTemp'))
@@ -148,13 +150,13 @@ export default function Light({ device, dockSlot }) {
   return (
     <>
       <div className="status-pill">
-        <span className={`dot${light.on ? ' on' : ''}`} />
+        <span className={`dot${light.on && !offline ? ' on' : ''}`} />
         {offline ? 'Offline' : !light.known ? 'Status onbekend' : light.on ? (light.brightness?.value != null ? `Aan · ${light.brightness.value}%` : 'Aan') : 'Uit'}
       </div>
 
       <button
         type="button"
-        className={`bulb${light.on ? ' on' : ''}`}
+        className={`bulb${light.on && !offline ? ' on' : ''}`}
         style={glow ? { '--glow': glow } : undefined}
         disabled={pending}
         aria-label={light.on ? 'Uitzetten' : 'Aanzetten'}
@@ -164,7 +166,7 @@ export default function Light({ device, dockSlot }) {
       </button>
 
       <div className="stack">
-        {offline && <p className="error">De lamp is niet bereikbaar. Staat de schakelaar aan, of is Zigbee2MQTT offline?</p>}
+        {offline && <p className="error">Zigbee2MQTT kreeg geen antwoord meer van deze lamp. Staat de schakelaar aan? Je kunt hem toch proberen te bedienen.</p>}
 
         {(light.brightness || light.colorTemp) && (
           <div className="card stack">
@@ -207,7 +209,7 @@ export default function Light({ device, dockSlot }) {
           <div className="card-head">
             <h2>Kamer</h2>
           </div>
-          <RoomPicker device={device} disabled={pending && !offline} onChange={send('room')} />
+          <RoomPicker device={device} disabled={pending} onChange={send('room')} />
         </div>
 
         <div className="card">

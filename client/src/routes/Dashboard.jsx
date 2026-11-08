@@ -44,7 +44,7 @@ function DeviceRow({ device }) {
         </span>
       </Link>
       {climate && <Toggle checked={on} disabled={pending || offline} label={`${device.name} aan/uit`} onChange={(value) => command(device.id, 'power', value)} />}
-      {light && <Toggle checked={on} disabled={pending || offline} label={`${device.name} aan/uit`} onChange={(value) => command(device.id, 'power', value)} />}
+      {light && <Toggle checked={on} disabled={pending} label={`${device.name} aan/uit`} onChange={(value) => command(device.id, 'power', value)} />}
       {ventilation?.boost && <Toggle checked={on} disabled={pending || offline} label={`${device.name} boost`} onChange={(enable) => command(device.id, 'boost', { enable })} />}
     </div>
   )

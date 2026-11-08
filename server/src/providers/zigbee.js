@@ -192,7 +192,7 @@ function onDevices(list) {
   }
 }
 
-function onMessage(topic, payload) {
+function onMessage(topic, payload, packet) {
   if (!topic.startsWith(`${base}/`)) return
   const path = topic.slice(base.length + 1)
   const data = parse(payload)
@@ -238,6 +238,9 @@ function onMessage(topic, payload) {
   const ieee = byName.get(path)
   if (!ieee || !data || typeof data !== 'object') return
   states.set(ieee, { ...states.get(ieee), ...data })
+  // A live (not retained) state message means the device just answered, even
+  // when Zigbee2MQTT's availability check had given up on it.
+  if (!packet?.retain) availability.set(path, true)
   const callbacks = waiters.get(ieee)
   if (callbacks) {
     waiters.delete(ieee)
