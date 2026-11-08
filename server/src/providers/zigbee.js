@@ -186,7 +186,8 @@ function normalize(device, light) {
         : null,
       color: light.color ? { value: state.color_mode && state.color_mode !== 'color_temp' ? colorOf(value(light.color)) : null } : null,
       effects: light.effects.length ? light.effects : null,
-      effect: runningEffects.get(light.key) ?? null,
+      // Newer Hue lamps report the running effect; others don't, so fall back to what was started.
+      effect: state.effect && state.effect !== 'none' ? state.effect : (runningEffects.get(light.key) ?? null),
       // Hue doesn't report this back, so what the app set is remembered.
       powerOn: light.powerOn
         ? { values: light.powerOn.values, value: state[light.powerOn.property] ?? settings.powerOn[`${id}:${light.key}`] ?? null }
@@ -494,6 +495,17 @@ export async function sendCommand(key, command, value) {
   if (command === 'powerOn') {
     settings.powerOn[`${id}:${key}`] = value
     saveSettings()
+    // The generic setting only restores on/off. Hue (and other lamps with these
+    // ZCL startup attributes) also keep brightness and colour when told to:
+    // 0xff / 0xffff mean "previous", otherwise Hue's defaults (100 %, warm white).
+    const previous = value === 'previous' || value === 'recover'
+    const endpoint = light.endpoint ? `/${light.endpoint}` : ''
+    if (light.brightness) {
+      publish(`${device.friendly_name}${endpoint}/set`, { write: { cluster: 'genLevelCtrl', payload: { startUpCurrentLevel: previous ? 255 : 254 } } })
+    }
+    if (light.colorTemp || light.color) {
+      publish(`${device.friendly_name}${endpoint}/set`, { write: { cluster: 'lightingColorCtrl', payload: { startUpColorTemperature: previous ? 65535 : 366 } } })
+    }
   }
   return normalize(devices.get(device.ieee_address), light)
 }
