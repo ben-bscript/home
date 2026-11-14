@@ -119,7 +119,13 @@ const runningEffects = new Map()
 const RESTORE_DELAY = 2000
 const RESTORE_WINDOW = 10000
 const lastStates = new Map()
+// The last state in which the lamp was on, for "on with the last colour".
+const lastOnStates = new Map()
 const announcedAt = new Map()
+// App-level choice: the lamp turns on at power-up (generic "on") but with the
+// last brightness and colour, like "previous" has. Needs the lamp to support both.
+const ON_PREVIOUS = 'on_previous'
+const powerOnValues = (expose) => (expose.values.includes('on') && expose.values.includes('previous') ? [ON_PREVIOUS, ...expose.values] : expose.values)
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
 const toHex = (r, g, b) => `#${[r, g, b].map((v) => Math.round(clamp(v, 0, 1) * 255).toString(16).padStart(2, '0')).join('')}`
@@ -198,7 +204,7 @@ function normalize(device, light) {
       effect: state.effect && state.effect !== 'none' ? state.effect : (runningEffects.get(light.key) ?? null),
       // Hue doesn't report this back, so what the app set is remembered.
       powerOn: light.powerOn
-        ? { values: light.powerOn.values, value: state[light.powerOn.property] ?? settings.powerOn[`${id}:${light.key}`] ?? null }
+        ? { values: powerOnValues(light.powerOn), value: settings.powerOn[`${id}:${light.key}`] ?? state[light.powerOn.property] ?? null }
         : null,
       colorMode: state.color_mode ?? null,
     },
@@ -290,7 +296,11 @@ function onMessage(topic, payload, packet) {
   // when Zigbee2MQTT's availability check had given up on it.
   if (!packet?.retain) availability.set(path, true)
   // What the lamp reports right after power-up is its default, not what we want to keep.
-  if (Date.now() - (announcedAt.get(ieee) ?? 0) > RESTORE_WINDOW) lastStates.set(ieee, { ...states.get(ieee) })
+  if (Date.now() - (announcedAt.get(ieee) ?? 0) > RESTORE_WINDOW) {
+    const snapshot = { ...states.get(ieee) }
+    lastStates.set(ieee, snapshot)
+    if (snapshot.state === 'ON') lastOnStates.set(ieee, snapshot)
+  }
   notify()
   const callbacks = waiters.get(ieee)
   if (callbacks) {
@@ -311,9 +321,15 @@ function restore(ieee) {
   if (lights.length !== 1) return
   const [light] = lights
   const wanted = settings.powerOn[`${id}:${light.key}`]
-  if (wanted !== 'previous' && wanted !== 'recover') return
-  const last = lastStates.get(ieee)
-  if (!last || last[light.state.property] !== (light.state.value_on ?? 'ON')) return
+  let last
+  if (wanted === ON_PREVIOUS) {
+    // Always on, with the colour it last had while on.
+    last = lastOnStates.get(ieee)
+  } else if (wanted === 'previous' || wanted === 'recover') {
+    last = lastStates.get(ieee)
+    if (last && last[light.state.property] !== (light.state.value_on ?? 'ON')) return
+  } else return
+  if (!last) return
 
   const body = { [light.state.property]: light.state.value_on ?? 'ON' }
   if (light.brightness && last[light.brightness.property] != null) body[light.brightness.property] = last[light.brightness.property]
@@ -478,8 +494,8 @@ function toPayload(light, command, value) {
     }
     case 'powerOn': {
       if (!light.powerOn) throw new HttpError(400, 'Deze lamp heeft geen instelling voor na een stroomonderbreking')
-      if (!light.powerOn.values.includes(value)) throw new HttpError(400, `Onbekende waarde "${value}"`)
-      return { [light.powerOn.property]: value }
+      if (!powerOnValues(light.powerOn).includes(value)) throw new HttpError(400, `Onbekende waarde "${value}"`)
+      return { [light.powerOn.property]: value === ON_PREVIOUS ? 'on' : value }
     }
     case 'effect': {
       if (!light.effects.length) throw new HttpError(400, 'Deze lamp heeft geen effecten')
@@ -534,7 +550,7 @@ export async function sendCommand(key, command, value) {
     // The generic setting only restores on/off. Hue (and other lamps with these
     // ZCL startup attributes) also keep brightness and colour when told to:
     // 0xff / 0xffff mean "previous", otherwise Hue's defaults (100 %, warm white).
-    const previous = value === 'previous' || value === 'recover'
+    const previous = value === 'previous' || value === 'recover' || value === ON_PREVIOUS
     const endpoint = light.endpoint ? `/${light.endpoint}` : ''
     if (light.brightness) {
       publish(`${device.friendly_name}${endpoint}/set`, { write: { cluster: 'genLevelCtrl', payload: { startUpCurrentLevel: previous ? 255 : 254 } } })

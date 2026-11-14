@@ -24,6 +24,7 @@ const SCENES = [
 
 // Power-on behaviour: generic Zigbee values and Hue's own.
 const POWER_ON_LABELS = {
+  on_previous: 'Aan, met laatste kleur',
   previous: 'Vorige toestand',
   recover: 'Vorige toestand',
   on: 'Aan',
@@ -296,7 +297,10 @@ export default function Light({ device, dockSlot }) {
             <div className="card-head">
               <h2>Na een stroomonderbreking</h2>
             </div>
-            <p className="muted">Wat de lamp doet als hij via de schakelaar weer stroom krijgt. Met "Vorige toestand" houdt hij zijn kleur en helderheid.</p>
+            <p className="muted">
+              Wat de lamp doet als hij via de schakelaar weer stroom krijgt. "Aan, met laatste kleur" is het handigst bij een muurschakelaar; met "Vorige toestand" blijft
+              een lamp die uit stond ook uit.
+            </p>
             <div className="chips">
               {light.powerOn.values.map((v) => (
                 <button key={v} type="button" className={light.powerOn.value === v ? 'active' : ''} disabled={pending} onClick={() => command(device.id, 'powerOn', v)}>
