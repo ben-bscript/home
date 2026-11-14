@@ -114,18 +114,16 @@ const STOP_EFFECTS = ['stop_hue_effect', 'finish_effect', 'stop_effect']
 const runningEffects = new Map()
 
 // A lamp saves its own state only a few seconds after a change, so after a
-// power cut it may come back with an older colour. When a lamp set to "previous"
-// announces itself after power-up, the state last seen is sent to it again.
+// power cut it may come back with an older colour. When a lamp announces itself
+// after power-up, the state it last had while on is sent to it again.
 const RESTORE_DELAY = 2000
 const RESTORE_WINDOW = 10000
-const lastStates = new Map()
-// The last state in which the lamp was on, for "on with the last colour".
+// The last state in which each lamp was on.
 const lastOnStates = new Map()
 const announcedAt = new Map()
-// App-level choice: the lamp turns on at power-up (generic "on") but with the
-// last brightness and colour, like "previous" has. Needs the lamp to support both.
-const ON_PREVIOUS = 'on_previous'
-const powerOnValues = (expose) => (expose.values.includes('on') && expose.values.includes('previous') ? [ON_PREVIOUS, ...expose.values] : expose.values)
+// Every lamp is set up the same way: on at power-up, with the last brightness
+// and colour. settings.powerOn remembers which lamps have been configured.
+const CONFIGURED = 'on_previous'
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
 const toHex = (r, g, b) => `#${[r, g, b].map((v) => Math.round(clamp(v, 0, 1) * 255).toString(16).padStart(2, '0')).join('')}`
@@ -202,10 +200,6 @@ function normalize(device, light) {
       effects: light.effects.length ? light.effects : null,
       // Newer Hue lamps report the running effect; others don't, so fall back to what was started.
       effect: state.effect && state.effect !== 'none' ? state.effect : (runningEffects.get(light.key) ?? null),
-      // Hue doesn't report this back, so what the app set is remembered.
-      powerOn: light.powerOn
-        ? { values: powerOnValues(light.powerOn), value: settings.powerOn[`${id}:${light.key}`] ?? state[light.powerOn.property] ?? null }
-        : null,
       colorMode: state.color_mode ?? null,
     },
     info: {
@@ -294,11 +288,14 @@ function onMessage(topic, payload, packet) {
   states.set(ieee, { ...states.get(ieee), ...data })
   // A live (not retained) state message means the device just answered, even
   // when Zigbee2MQTT's availability check had given up on it.
-  if (!packet?.retain) availability.set(path, true)
+  if (!packet?.retain) {
+    availability.set(path, true)
+    // The lamp is reachable, so this is the moment to set it up.
+    configurePowerOn(devices.get(ieee))
+  }
   // What the lamp reports right after power-up is its default, not what we want to keep.
   if (Date.now() - (announcedAt.get(ieee) ?? 0) > RESTORE_WINDOW) {
     const snapshot = { ...states.get(ieee) }
-    lastStates.set(ieee, snapshot)
     if (snapshot.state === 'ON') lastOnStates.set(ieee, snapshot)
   }
   notify()
@@ -314,21 +311,30 @@ function notify() {
   changed({ id, listDevices, status })
 }
 
+// Set a lamp to come on after a power cut with its last brightness and colour.
+// The generic power_on_behavior only covers on/off; the ZCL startup attributes
+// (0xff / 0xffff = previous) cover the rest. Done once, when the lamp is first heard.
+function configurePowerOn(device) {
+  for (const light of lightsOf(device)) {
+    const key = `${id}:${light.key}`
+    if (!light.powerOn || settings.powerOn[key] === CONFIGURED) continue
+    const endpoint = light.endpoint ? `/${light.endpoint}` : ''
+    publish(`${device.friendly_name}${endpoint}/set`, { [light.powerOn.property]: light.powerOn.values.includes('on') ? 'on' : light.powerOn.values[0] })
+    if (light.brightness) publish(`${device.friendly_name}${endpoint}/set`, { write: { cluster: 'genLevelCtrl', payload: { startUpCurrentLevel: 255 } } })
+    if (light.colorTemp || light.color) publish(`${device.friendly_name}${endpoint}/set`, { write: { cluster: 'lightingColorCtrl', payload: { startUpColorTemperature: 65535 } } })
+    settings.powerOn[key] = CONFIGURED
+    saveSettings()
+  }
+}
+
 function restore(ieee) {
   const device = devices.get(ieee)
   const lights = device ? lightsOf(device) : []
   // Only single lights; a multi-endpoint relay has nothing to restore.
   if (lights.length !== 1) return
   const [light] = lights
-  const wanted = settings.powerOn[`${id}:${light.key}`]
-  let last
-  if (wanted === ON_PREVIOUS) {
-    // Always on, with the colour it last had while on.
-    last = lastOnStates.get(ieee)
-  } else if (wanted === 'previous' || wanted === 'recover') {
-    last = lastStates.get(ieee)
-    if (last && last[light.state.property] !== (light.state.value_on ?? 'ON')) return
-  } else return
+  // Always on, with the colour it last had while on.
+  const last = lastOnStates.get(ieee)
   if (!last) return
 
   const body = { [light.state.property]: light.state.value_on ?? 'ON' }
@@ -492,11 +498,6 @@ function toPayload(light, command, value) {
       }
       return body
     }
-    case 'powerOn': {
-      if (!light.powerOn) throw new HttpError(400, 'Deze lamp heeft geen instelling voor na een stroomonderbreking')
-      if (!powerOnValues(light.powerOn).includes(value)) throw new HttpError(400, `Onbekende waarde "${value}"`)
-      return { [light.powerOn.property]: value === ON_PREVIOUS ? 'on' : value }
-    }
     case 'effect': {
       if (!light.effects.length) throw new HttpError(400, 'Deze lamp heeft geen effecten')
       if (value == null || value === '') {
@@ -538,27 +539,12 @@ export async function sendCommand(key, command, value) {
   if (command === 'effect') {
     if (value) runningEffects.set(light.key, value)
     else runningEffects.delete(light.key)
-  } else if (command !== 'brightness' && command !== 'powerOn') runningEffects.delete(light.key)
+  } else if (command !== 'brightness') runningEffects.delete(light.key)
   // Effects are fire-and-forget: Hue lamps start them without reporting a new
   // state, so don't hold the app up waiting for one.
   const reply = command === 'effect' ? nextState(device.ieee_address, 500).catch(() => {}) : nextState(device.ieee_address, COMMAND_TIMEOUT)
   publish(`${device.friendly_name}/set`, payload)
   await reply
-  if (command === 'powerOn') {
-    settings.powerOn[`${id}:${key}`] = value
-    saveSettings()
-    // The generic setting only restores on/off. Hue (and other lamps with these
-    // ZCL startup attributes) also keep brightness and colour when told to:
-    // 0xff / 0xffff mean "previous", otherwise Hue's defaults (100 %, warm white).
-    const previous = value === 'previous' || value === 'recover' || value === ON_PREVIOUS
-    const endpoint = light.endpoint ? `/${light.endpoint}` : ''
-    if (light.brightness) {
-      publish(`${device.friendly_name}${endpoint}/set`, { write: { cluster: 'genLevelCtrl', payload: { startUpCurrentLevel: previous ? 255 : 254 } } })
-    }
-    if (light.colorTemp || light.color) {
-      publish(`${device.friendly_name}${endpoint}/set`, { write: { cluster: 'lightingColorCtrl', payload: { startUpColorTemperature: previous ? 65535 : 366 } } })
-    }
-  }
   return normalize(devices.get(device.ieee_address), light)
 }
 
